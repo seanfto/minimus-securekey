@@ -36,6 +36,18 @@
 
 #include "VirtualSerial.h"
 
+/** Circular buffer to hold data from the host before it is REPL. */
+static RingBuffer_t USBtoREPL_Buffer;
+
+/** Underlying data buffer for \ref USBtoREPL_Buffer, where the stored bytes are located. */
+static uint8_t      USBtoREPL_Buffer_Data[128];
+
+/** Circular buffer to hold data from the REPL before it is sent to the host. */
+static RingBuffer_t REPLtoUSB_Buffer;
+
+/** Underlying data buffer for \ref REPLtoUSB_Buffer, where the stored bytes are located. */
+static uint8_t      REPLtoUSB_Buffer_Data[128];
+
 /** LUFA CDC Class driver interface configuration and state information. This structure is
  *  passed to all CDC Class driver functions, so that multiple instances of the same class
  *  within a device can be differentiated from one another.
@@ -79,6 +91,9 @@ int main(void)
 {
 	SetupHardware();
 
+	RingBuffer_InitBuffer(&USBtoREPL_Buffer, USBtoREPL_Buffer_Data, sizeof(USBtoREPL_Buffer_Data));
+	RingBuffer_InitBuffer(&REPLtoUSB_Buffer, REPLtoUSB_Buffer_Data, sizeof(REPLtoUSB_Buffer_Data));
+
 	/* Create a regular character stream for the interface so that it can be used with the stdio.h functions */
 	CDC_Device_CreateStream(&VirtualSerial_CDC_Interface, &USBSerialStream);
 
@@ -104,43 +119,10 @@ void SetupHardware(void)
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
-#elif (ARCH == ARCH_XMEGA)
-	/* Start the PLL to multiply the 2MHz RC oscillator to 32MHz and switch the CPU core to run from it */
-	XMEGACLK_StartPLL(CLOCK_SRC_INT_RC2MHZ, 2000000, F_CPU);
-	XMEGACLK_SetCPUClockSource(CLOCK_SRC_PLL);
-
-	/* Start the 32MHz internal RC oscillator and start the DFLL to increase it to 48MHz using the USB SOF as a reference */
-	XMEGACLK_StartInternalOscillator(CLOCK_SRC_INT_RC32MHZ);
-	XMEGACLK_StartDFLL(CLOCK_SRC_INT_RC32MHZ, DFLL_REF_INT_USBSOF, F_USB);
-
-	PMIC.CTRL = PMIC_LOLVLEN_bm | PMIC_MEDLVLEN_bm | PMIC_HILVLEN_bm;
 #endif
 
 	/* Hardware Initialization */
 	USB_Init();
-}
-
-/** Checks for changes in the position of the board joystick, sending strings to the host upon each change. */
-void CheckJoystickMovement(void)
-{
-	uint8_t     JoyStatus_LCL = Joystick_GetStatus();
-	char*       ReportString  = NULL;
-	static bool ActionSent    = false;
-
-        if (true) {
-	        ReportString = "Idle\r\n";
-        }
-
-	if ((ReportString != NULL) && (ActionSent == false))
-	{
-		ActionSent = true;
-
-		/* Write the string to the virtual COM port via the created character stream */
-		fputs(ReportString, &USBSerialStream);
-
-		/* Alternatively, without the stream: */
-		// CDC_Device_SendString(&VirtualSerial_CDC_Interface, ReportString);
-	}
 }
 
 /** Event handler for the library USB Connection event. */
@@ -169,20 +151,4 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 void EVENT_USB_Device_ControlRequest(void)
 {
 	CDC_Device_ProcessControlRequest(&VirtualSerial_CDC_Interface);
-}
-
-/** CDC class driver callback function the processing of changes to the virtual
- *  control lines sent from the host..
- *
- *  \param[in] CDCInterfaceInfo  Pointer to the CDC class interface configuration structure being referenced
- */
-void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t *const CDCInterfaceInfo)
-{
-	/* You can get changes to the virtual CDC lines in this callback; a common
-	   use-case is to use the Data Terminal Ready (DTR) flag to enable and
-	   disable CDC communications in your application when set to avoid the
-	   application blocking while waiting for a host to become ready and read
-	   in the pending data from the USB endpoints.
-	*/
-	bool HostReady = (CDCInterfaceInfo->State.ControlLineStates.HostToDevice & CDC_CONTROL_LINE_OUT_DTR) != 0;
 }
