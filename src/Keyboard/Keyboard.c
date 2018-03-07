@@ -36,6 +36,26 @@
 
 #include "Keyboard.h"
 
+const uint8_t PROGMEM secret[] =
+{
+  HID_KEYBOARD_SC_CAPS_LOCK,
+  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_SC_L,
+  HID_KEYBOARD_SC_O,
+  HID_KEYBOARD_SC_CAPS_LOCK,
+  HID_KEYBOARD_SC_ENTER,
+  HID_KEYBOARD_SC_ESCAPE, /* I will use this for separation */
+  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
+  HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
+  HID_KEYBOARD_SC_O,
+  HID_KEYBOARD_SC_ENTER
+};
+
+/** Circular buffer to hold data from the keystorage before it is sent to the device via the HID. */
+static RingBuffer_t Secret2USB_Buffer;
+
+/** Underlying data buffer for \ref Secret2USB_Buffer, where the stored bytes are located. */
+static uint8_t      Secret2USB_Buffer_Data[128];
+
 /** Buffer to hold the previously generated Keyboard HID report, for comparison purposes inside the HID class driver. */
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
 
@@ -67,6 +87,9 @@ int main(void)
 {
 	SetupHardware();
 
+	RingBuffer_InitBuffer(&Secret2USB_Buffer, Secret2USB_Buffer_Data, sizeof(Secret2USB_Buffer_Data));
+	memcpy_P(&Secret2USB_Buffer, secret, sizeof(secret));
+
 	GlobalInterruptEnable();
 
 	for (;;)
@@ -86,16 +109,6 @@ void SetupHardware()
 
 	/* Disable clock division */
 	clock_prescale_set(clock_div_1);
-#elif (ARCH == ARCH_XMEGA)
-	/* Start the PLL to multiply the 2MHz RC oscillator to 32MHz and switch the CPU core to run from it */
-	XMEGACLK_StartPLL(CLOCK_SRC_INT_RC2MHZ, 2000000, F_CPU);
-	XMEGACLK_SetCPUClockSource(CLOCK_SRC_PLL);
-
-	/* Start the 32MHz internal RC oscillator and start the DFLL to increase it to 48MHz using the USB SOF as a reference */
-	XMEGACLK_StartInternalOscillator(CLOCK_SRC_INT_RC32MHZ);
-	XMEGACLK_StartDFLL(CLOCK_SRC_INT_RC32MHZ, DFLL_REF_INT_USBSOF, F_USB);
-
-	PMIC.CTRL = PMIC_LOLVLEN_bm | PMIC_MEDLVLEN_bm | PMIC_HILVLEN_bm;
 #endif
 
 	/* Hardware Initialization */
@@ -151,11 +164,17 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
                                          uint16_t* const ReportSize)
 {
 	USB_KeyboardReport_Data_t* KeyboardReport = (USB_KeyboardReport_Data_t*)ReportData;
-
+	uint16_t BufferCount = RingBuffer_GetCount(&Secret2USB_Buffer);
+	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
 	uint8_t UsedKeyCodes = 0;
 
+	if ((USB_DeviceState == DEVICE_STATE_Configured) && !(RingBuffer_IsFull(&Secret2USB_Buffer))) {
+		KeyboardReport->KeyCode[UsedKeyCodes++] = RingBuffer_Remove(&Secret2USB_Buffer);
+		if (RingBuffer_Peek(&Secret2USB_Buffer) == HID_KEYBOARD_MODIFIER_LEFTSHIFT)
+			KeyboardReport->Modifier = RingBuffer_Remove(&Secret2USB_Buffer);
+
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
-	return false;
+	return true; /* we force sending the report, to keep modifier keys */
 }
 
 /** HID class driver callback function for the processing of HID reports from the host.
