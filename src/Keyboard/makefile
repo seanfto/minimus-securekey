@@ -22,9 +22,15 @@ SRC          = $(TARGET).c Descriptors.c $(LUFA_SRC_USB) $(LUFA_SRC_USBCLASS) $(
 LUFA_PATH    = ../../lufa/LUFA
 CC_FLAGS     = -DUSE_LUFA_CONFIG_HEADER -IConfig/
 LD_FLAGS     =
+DFU          = dfu-programmer
 
 # Default target
 all:
+
+upload:
+	$(DFU) $(MCU) erase
+	$(DFU) $(MCU) flash $(TARGET).hex
+	$(DFU) $(MCU) start
 
 # Include LUFA-specific DMBS extension modules
 DMBS_LUFA_PATH ?= $(LUFA_PATH)/Build/LUFA
