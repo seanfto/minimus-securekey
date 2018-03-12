@@ -168,11 +168,6 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
 	uint8_t UsedKeyCodes = 0;
 
-	if ((USB_DeviceState == DEVICE_STATE_Configured) && !(RingBuffer_IsFull(&Secret2USB_Buffer))) {
-		KeyboardReport->KeyCode[UsedKeyCodes++] = RingBuffer_Remove(&Secret2USB_Buffer);
-		if (RingBuffer_Peek(&Secret2USB_Buffer) == HID_KEYBOARD_MODIFIER_LEFTSHIFT)
-			KeyboardReport->Modifier = RingBuffer_Remove(&Secret2USB_Buffer);
-
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
 	return true; /* we force sending the report, to keep modifier keys */
 }
