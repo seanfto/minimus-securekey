@@ -36,6 +36,10 @@
 
 #include "Keyboard.h"
 
+#define ALL_OFF  (PORTD |= 0b01100000) //turn off leds
+#define LED_EN  (DDRD  |= 0b01100000) // enable leds as output
+#define HWBIN_EN (DDRD  &= 0b01111111) // make hwb an input
+
 const uint8_t PROGMEM secret[] =
 {
   HID_KEYBOARD_SC_CAPS_LOCK,
@@ -88,7 +92,11 @@ int main(void)
 	SetupHardware();
 
 	RingBuffer_InitBuffer(&Secret2USB_Buffer, Secret2USB_Buffer_Data, sizeof(Secret2USB_Buffer_Data));
-	memcpy_P(&Secret2USB_Buffer, secret, sizeof(secret));
+	uint16_t SecLen = sizeof(secret);
+	uint16_t SecCnt = SecLen;
+
+	while (SecCnt--)
+		RingBuffer_Insert(&Secret2USB_Buffer, secret[SecLen-SecCnt]);
 
 	GlobalInterruptEnable();
 
@@ -112,6 +120,9 @@ void SetupHardware()
 #endif
 
 	/* Hardware Initialization */
+	ALL_OFF;
+	LED_EN;
+	HWBIN_EN;
 	USB_Init();
 }
 
@@ -164,12 +175,16 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
                                          uint16_t* const ReportSize)
 {
 	USB_KeyboardReport_Data_t* KeyboardReport = (USB_KeyboardReport_Data_t*)ReportData;
-	uint16_t BufferCount = RingBuffer_GetCount(&Secret2USB_Buffer);
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
 	uint8_t UsedKeyCodes = 0;
-
+	if (RingBuffer_IsEmpty(&Secret2USB_Buffer))
+	{
+		led_red_heartbeat();
+	} else {
+		RingBuffer_Remove(&Secret2USB_Buffer); // Consumer
+	}
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
-	return true; /* we force sending the report, to keep modifier keys */
+	return false;
 }
 
 /** HID class driver callback function for the processing of HID reports from the host.
@@ -188,3 +203,53 @@ void CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t* const HIDI
 {
 }
 
+void led_blue_heartbeat()
+{
+	_delay_ms(2500);
+	led_blue_toggle();
+	_delay_ms(50);
+	led_blue_toggle();
+}
+
+void led_blue_fast_heartbeat()
+{
+	_delay_ms(500);
+	led_blue_toggle();
+	_delay_ms(10);
+	led_blue_toggle();
+}
+
+void led_red_heartbeat()
+{
+	_delay_ms(2500);
+	led_red_toggle();
+	_delay_ms(50);
+	led_red_toggle();
+}
+
+void led_blue(char on)
+{
+	if (on) PORTD &= 0b11011111;
+	else    PORTD |= 0b00100000;
+}
+
+void led_blue_toggle()
+{
+	PORTD ^= 0b00100000;
+}
+
+void led_red(char on)
+{
+	if (on) PORTD &= 0b10111111;
+	else    PORTD |= 0b01000000;
+}
+
+void led_red_toggle()
+{
+	PORTD ^= 0b01000000;
+}
+
+char hwb_is_pressed()
+{
+	return !(PIND & 0b10000000);
+}
