@@ -36,9 +36,9 @@
 
 #include "SecureKey.h"
 
-#define ALL_OFF  (PORTD |= 0b01100000) //turn off leds
-#define LED_EN  (DDRD  |= 0b01100000) // enable leds as output
-#define HWBIN_EN (DDRD  &= 0b01111111) // make hwb an input
+#define ALL_OFF     (PORTD |= 0b01100000) // turn off leds
+#define LED_EN      (DDRD  |= 0b01100000) // enable leds as output
+#define HWBIN_EN    (DDRD  &= 0b01111111) // make hwb an input
 
 const uint8_t PROGMEM secret[] =
 {
@@ -58,19 +58,19 @@ const uint8_t PROGMEM secret[] =
 static RingBuffer_t USBtoREPL_Buffer;
 
 /** Underlying data buffer for \ref USBtoREPL_Buffer, where the stored bytes are located. */
-static uint8_t      USBtoREPL_Buffer_Data[128];
+static uint8_t      USBtoREPL_Buffer_Data[16];
 
 /** Circular buffer to hold data from the REPL before it is sent to the host. */
 static RingBuffer_t REPLtoUSB_Buffer;
 
 /** Underlying data buffer for \ref REPLtoUSB_Buffer, where the stored bytes are located. */
-static uint8_t      REPLtoUSB_Buffer_Data[128];
+static uint8_t      REPLtoUSB_Buffer_Data[16];
 
 /** Circular buffer to hold data from the keystorage before it is sent to the device via the HID. */
 static RingBuffer_t Secret2USB_Buffer;
 
 /** Underlying data buffer for \ref Secret2USB_Buffer, where the stored bytes are located. */
-static uint8_t      Secret2USB_Buffer_Data[128];
+static uint8_t      Secret2USB_Buffer_Data[32];
 
 /** Buffer to hold the previously generated Keyboard HID report, for comparison purposes inside the HID class driver. */
 static uint8_t PrevKeyboardHIDReportBuffer[sizeof(USB_KeyboardReport_Data_t)];
@@ -198,7 +198,7 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 
 	USB_Device_EnableSOFEvents();
 
-	if (ConfigSuccess )
+	if (ConfigSuccess)
 	{
 		led_red_toggle();
 		led_blue(1);
