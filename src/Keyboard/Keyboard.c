@@ -36,23 +36,16 @@
 
 #include "Keyboard.h"
 
-#define ALL_OFF  (PORTD |= 0b01100000) //turn off leds
-#define LED_EN  (DDRD  |= 0b01100000) // enable leds as output
-#define HWBIN_EN (DDRD  &= 0b01111111) // make hwb an input
+#define ALL_OFF     (PORTD |= 0b01100000) // turn off leds
+#define LED_EN      (DDRD  |= 0b01100000) // enable leds as output
+#define HWBIN_EN    (DDRD  &= 0b01111111) // make hwb an input
 
-const uint8_t PROGMEM secret[] =
-{
-  HID_KEYBOARD_SC_CAPS_LOCK,
-  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_SC_L,
-  HID_KEYBOARD_SC_O,
-  HID_KEYBOARD_SC_CAPS_LOCK,
-  HID_KEYBOARD_SC_ENTER,
-  HID_KEYBOARD_SC_ESCAPE, /* I will use this for separation */
-  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
-  HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
-  HID_KEYBOARD_SC_O,
-  HID_KEYBOARD_SC_ENTER
-};
+uint16_t SecLength;
+uint16_t SecCounter;
+
+extern void led_red(char);
+extern void led_blue(char);
+extern char hwb_is_pressed(void);
 
 /** Circular buffer to hold data from the keystorage before it is sent to the device via the HID. */
 static RingBuffer_t Secret2USB_Buffer;
@@ -90,13 +83,19 @@ USB_ClassInfo_HID_Device_t Keyboard_HID_Interface =
 int main(void)
 {
 	SetupHardware();
+	led_red(1);
+
+	SecLength = sizeof(secret) / sizeof(secret[0]);
+	SecCounter = 0;
 
 	RingBuffer_InitBuffer(&Secret2USB_Buffer, Secret2USB_Buffer_Data, sizeof(Secret2USB_Buffer_Data));
-	uint16_t SecLen = sizeof(secret);
+	uint16_t SecLen = sizeof(secret) / sizeof(secret[0]);
 	uint16_t SecCnt = SecLen;
 
-	while (SecCnt--)
-		RingBuffer_Insert(&Secret2USB_Buffer, secret[SecLen-SecCnt]);
+	while (SecCnt--) {
+		key_t currentKey = (key_t)secret[SecLen-SecCnt];
+		RingBuffer_Insert(&Secret2USB_Buffer, currentKey.key);
+	}
 
 	GlobalInterruptEnable();
 
@@ -104,6 +103,11 @@ int main(void)
 	{
 		HID_Device_USBTask(&Keyboard_HID_Interface);
 		USB_USBTask();
+		if (SecLength == SecCnt)
+		{
+			led_blue(1);
+			led_red(0);
+		}
 	}
 }
 
@@ -175,16 +179,15 @@ bool CALLBACK_HID_Device_CreateHIDReport(USB_ClassInfo_HID_Device_t* const HIDIn
                                          uint16_t* const ReportSize)
 {
 	USB_KeyboardReport_Data_t* KeyboardReport = (USB_KeyboardReport_Data_t*)ReportData;
-	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
 	uint8_t UsedKeyCodes = 0;
-	if (RingBuffer_IsEmpty(&Secret2USB_Buffer))
-	{
-		led_red_heartbeat();
-	} else {
-		RingBuffer_Remove(&Secret2USB_Buffer); // Consumer
+
+	if (SecCounter < SecLength && hwb_is_pressed()) {
+		key_t currentKey = (key_t)secret[SecCounter++];
+		KeyboardReport->Modifier = currentKey.mod;
+		KeyboardReport->KeyCode[UsedKeyCodes++] = currentKey.key;
 	}
 	*ReportSize = sizeof(USB_KeyboardReport_Data_t);
-	return false;
+	return true;
 }
 
 /** HID class driver callback function for the processing of HID reports from the host.
@@ -201,55 +204,4 @@ void CALLBACK_HID_Device_ProcessHIDReport(USB_ClassInfo_HID_Device_t* const HIDI
                                           const void* ReportData,
                                           const uint16_t ReportSize)
 {
-}
-
-void led_blue_heartbeat()
-{
-	_delay_ms(2500);
-	led_blue_toggle();
-	_delay_ms(50);
-	led_blue_toggle();
-}
-
-void led_blue_fast_heartbeat()
-{
-	_delay_ms(500);
-	led_blue_toggle();
-	_delay_ms(10);
-	led_blue_toggle();
-}
-
-void led_red_heartbeat()
-{
-	_delay_ms(2500);
-	led_red_toggle();
-	_delay_ms(50);
-	led_red_toggle();
-}
-
-void led_blue(char on)
-{
-	if (on) PORTD &= 0b11011111;
-	else    PORTD |= 0b00100000;
-}
-
-void led_blue_toggle()
-{
-	PORTD ^= 0b00100000;
-}
-
-void led_red(char on)
-{
-	if (on) PORTD &= 0b10111111;
-	else    PORTD |= 0b01000000;
-}
-
-void led_red_toggle()
-{
-	PORTD ^= 0b01000000;
-}
-
-char hwb_is_pressed()
-{
-	return !(PIND & 0b10000000);
 }

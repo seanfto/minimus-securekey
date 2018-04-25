@@ -45,6 +45,7 @@
 		#include <string.h>
 
 		#include "Descriptors.h"
+		#include "Secret.h"
 
 		#include <LUFA/Drivers/Board/LEDs.h>
 		#include <LUFA/Drivers/Board/Buttons.h>
@@ -86,4 +87,3 @@
 		                                          const uint16_t ReportSize);
 
 #endif
-
