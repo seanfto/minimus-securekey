@@ -3,7 +3,7 @@
 
 typedef struct {
 	uint8_t key;
-    uint8_t mod;
+	uint8_t mod;
 } key_t;
 
 #define HID_KEYBOARD_MODIFIER_NONE 0
@@ -15,8 +15,7 @@ static const key_t secret[] =
   {HID_KEYBOARD_SC_C, HID_KEYBOARD_MODIFIER_NONE},
   {HID_KEYBOARD_SC_R, HID_KEYBOARD_MODIFIER_NONE},
   {HID_KEYBOARD_SC_E, HID_KEYBOARD_MODIFIER_NONE},
-  {HID_KEYBOARD_SC_T, HID_KEYBOARD_MODIFIER_NONE},
-
+  {HID_KEYBOARD_SC_T, HID_KEYBOARD_MODIFIER_NONE}
 };
 
 #endif
