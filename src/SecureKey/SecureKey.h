@@ -46,6 +46,7 @@
 		#include <stdio.h>
 
 		#include "Descriptors.h"
+		#include "Secret.h"
 
 		#include <LUFA/Drivers/Board/LEDs.h>
 		#include <LUFA/Drivers/Board/Buttons.h>
@@ -86,16 +87,4 @@
 		                                          const void* ReportData,
 		                                          const uint16_t ReportSize);
 
-		void led_blue_heartbeat(void);
-		void led_blue_fast_heartbeat(void);
-
-		void led_red_heartbeat(void);
-
-        void led_blue(char);
-		void led_blue_toggle(void);
-
-        void led_red(char);
-		void led_red_toggle(void);
-
-        char hwb_is_pressed(void);
 #endif

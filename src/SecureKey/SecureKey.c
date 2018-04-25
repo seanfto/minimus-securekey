@@ -40,19 +40,9 @@
 #define LED_EN      (DDRD  |= 0b01100000) // enable leds as output
 #define HWBIN_EN    (DDRD  &= 0b01111111) // make hwb an input
 
-const uint8_t PROGMEM secret[] =
-{
-  HID_KEYBOARD_SC_CAPS_LOCK,
-  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_SC_L,
-  HID_KEYBOARD_SC_O,
-  HID_KEYBOARD_SC_CAPS_LOCK,
-  HID_KEYBOARD_SC_ENTER,
-  HID_KEYBOARD_SC_ESCAPE, /* I will use this for separation */
-  HID_KEYBOARD_SC_H, HID_KEYBOARD_SC_E, HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
-  HID_KEYBOARD_SC_L, HID_KEYBOARD_MODIFIER_LEFTSHIFT,
-  HID_KEYBOARD_SC_O,
-  HID_KEYBOARD_SC_ENTER
-};
+extern void led_blue(char);
+extern void led_red(char);
+extern char hwb_is_pressed(void);
 
 /** Circular buffer to hold data from the host before it is REPL. */
 static RingBuffer_t USBtoREPL_Buffer;
@@ -136,12 +126,13 @@ int main(void)
 	RingBuffer_InitBuffer(&REPLtoUSB_Buffer, REPLtoUSB_Buffer_Data, sizeof(REPLtoUSB_Buffer_Data));
 
 	RingBuffer_InitBuffer(&Secret2USB_Buffer, Secret2USB_Buffer_Data, sizeof(Secret2USB_Buffer_Data));
-	uint16_t SecLen = sizeof(secret);
+	uint16_t SecLen = sizeof(secret) / sizeof(secret[0]);
 	uint16_t SecCnt = SecLen;
 
-	while (SecCnt--)
-		RingBuffer_Insert(&Secret2USB_Buffer, secret[SecLen-SecCnt]);
-
+	while (SecCnt--) {
+		key_t currentKey = (key_t)secret[SecLen-SecCnt];
+		RingBuffer_Insert(&Secret2USB_Buffer, currentKey.key);
+    }
 	GlobalInterruptEnable();
 
 	for (;;)
@@ -200,7 +191,7 @@ void EVENT_USB_Device_ConfigurationChanged(void)
 
 	if (ConfigSuccess)
 	{
-		led_red_toggle();
+		led_red(0);
 		led_blue(1);
 	}
 }
@@ -285,55 +276,4 @@ void EVENT_CDC_Device_ControLineStateChanged(USB_ClassInfo_CDC_Device_t *const C
 	   in the pending data from the USB endpoints.
 	*/
 	bool HostReady = (CDCInterfaceInfo->State.ControlLineStates.HostToDevice & CDC_CONTROL_LINE_OUT_DTR) != 0;
-}
-
-void led_blue_heartbeat()
-{
-	_delay_ms(2500);
-	led_blue_toggle();
-	_delay_ms(50);
-	led_blue_toggle();
-}
-
-void led_blue_fast_heartbeat()
-{
-	_delay_ms(500);
-	led_blue_toggle();
-	_delay_ms(10);
-	led_blue_toggle();
-}
-
-void led_red_heartbeat()
-{
-	_delay_ms(2500);
-	led_red_toggle();
-	_delay_ms(50);
-	led_red_toggle();
-}
-
-void led_blue(char on)
-{
-	if (on) PORTD &= 0b11011111;
-	else    PORTD |= 0b00100000;
-}
-
-void led_blue_toggle()
-{
-	PORTD ^= 0b00100000;
-}
-
-void led_red(char on)
-{
-	if (on) PORTD &= 0b10111111;
-	else    PORTD |= 0b01000000;
-}
-
-void led_red_toggle()
-{
-	PORTD ^= 0b01000000;
-}
-
-char hwb_is_pressed()
-{
-	return !(PIND & 0b10000000);
 }
